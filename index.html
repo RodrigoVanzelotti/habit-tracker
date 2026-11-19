@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f5ef" />
+    <title>Habit Tracker</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell" id="app" aria-live="polite">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="today-label"></p>
+          <h1>Good morning, Rodrigo</h1>
+        </div>
+        <button class="icon-button" id="add-habit-button" type="button" aria-label="Add habit">+</button>
+      </header>
+
+      <nav class="tabs" aria-label="Main navigation">
+        <button class="tab active" type="button" data-tab="checkin">Check-in</button>
+        <button class="tab" type="button" data-tab="dashboard">Dashboard</button>
+      </nav>
+
+      <section class="tab-panel active" id="checkin-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Today</p>
+            <h2 id="checkin-date"></h2>
+          </div>
+          <span class="progress-pill" id="daily-progress">0% complete</span>
+        </div>
+        <div class="habit-list" id="habit-list"></div>
+      </section>
+
+      <section class="tab-panel" id="dashboard-panel">
+        <div class="dashboard-controls">
+          <label>
+            Period
+            <select id="period-filter">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last year</option>
+            </select>
+          </label>
+          <label>
+            Habit
+            <select id="habit-filter"><option value="all">All habits</option></select>
+          </label>
+        </div>
+        <div class="summary-grid" id="summary-grid"></div>
+        <article class="card">
+          <div class="card-heading">
+            <h2>Consistency</h2>
+            <span id="chart-range"></span>
+          </div>
+          <div class="chart" id="consistency-chart"></div>
+        </article>
+        <article class="card">
+          <div class="card-heading"><h2>Milestones</h2></div>
+          <div class="milestones" id="milestones"></div>
+        </article>
+      </section>
+    </main>
+
+    <dialog id="habit-dialog">
+      <form method="dialog" id="habit-form">
+        <div class="dialog-heading">
+          <h2>New habit</h2>
+          <button class="icon-button quiet" value="cancel" type="submit" aria-label="Close">×</button>
+        </div>
+        <label>
+          Name
+          <input name="name" required maxlength="40" placeholder="Read" />
+        </label>
+        <div class="form-row">
+          <label>
+            Emoji
+            <input name="emoji" required maxlength="8" value="✨" />
+          </label>
+          <label>
+            Type
+            <select name="type">
+              <option value="positive">Build it</option>
+              <option value="negative">Reduce it</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>
+            Goal
+            <input name="target" required type="number" min="1" max="31" value="5" />
+          </label>
+          <label>
+            Period
+            <select name="period">
+              <option value="week">Per week</option>
+              <option value="month">Per month</option>
+            </select>
+          </label>
+        </div>
+        <p class="field-help">Positive habits reward each check. Negative habits reward days where you avoid the habit.</p>
+        <button class="primary-button" value="save" type="submit">Save habit</button>
+      </form>
+    </dialog>
+
+    <section class="password-screen" id="password-screen">
+      <form class="password-card" id="password-form">
+        <div class="lock-mark" aria-hidden="true">◆</div>
+        <h1>Habit Tracker</h1>
+        <p>Enter your password to continue.</p>
+        <label>
+          Password
+          <input id="password-input" type="password" autocomplete="current-password" required />
+        </label>
+        <p class="password-error" id="password-error"></p>
+        <button class="primary-button" type="submit">Unlock</button>
+      </form>
+    </section>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
