@@ -1,11 +1,11 @@
 :root {
   --ink: #20241f;
-  --muted: #777d72;
+  --muted: #596151;
   --surface: rgba(255, 255, 255, 0.82);
   --line: #e2e5dc;
-  --sage: #718c67;
+  --sage: #4e6944;
   --sage-light: #edf2e8;
-  --peach: #d89770;
+  --peach: #975d3b;
   --background: #f4f5ef;
 }
 
@@ -119,9 +119,29 @@ input:focus, select:focus { border-color: var(--sage); box-shadow: 0 0 0 3px rgb
 .bar { width: 100%; min-height: 3px; border-radius: 6px 6px 2px 2px; background: var(--sage); }
 .bar.negative { background: var(--peach); }
 
+.calendar-views, .calendar-actions { display: flex; gap: 4px; }
+.calendar-views { padding: 3px; border-radius: 12px; background: var(--sage-light); }
+.calendar-view, .calendar-actions button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: var(--ink); font-weight: 700; }
+.calendar-view[aria-pressed="true"] { background: var(--ink); color: white; }
+.calendar-navigation { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 18px 0 12px; }
+.calendar-navigation h3 { margin: 0; font-size: 1rem; }
+.calendar-actions button { background: var(--sage-light); }
+.calendar-view:hover, .calendar-actions button:hover { text-decoration: underline; }
+.calendar-card button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.calendar-table { width: 100%; table-layout: fixed; border-spacing: 3px; margin-bottom: 12px; }
+.calendar-table th { padding: 6px 0; color: var(--muted); font-size: 0.875rem; font-weight: 600; }
+.calendar-day { height: 82px; padding: 8px; vertical-align: top; border: 1px solid var(--line); border-radius: 8px; font-variant-numeric: tabular-nums; }
+.calendar-day.outside-month { border-style: dashed; color: var(--muted); }
+.calendar-day.has-checkins { background: var(--sage-light); }
+.calendar-day.complete { background: var(--sage); color: white; }
+.calendar-day time { display: inline-grid; place-items: center; min-width: 26px; min-height: 26px; font-weight: 700; }
+.calendar-day time[aria-current="date"] { outline: 2px solid currentColor; border-radius: 50%; }
+.calendar-count { display: block; margin-top: 8px; font-size: 0.875rem; }
+.calendar-card .field-help { font-size: 0.875rem; }
+
 .milestones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .milestone { text-align: center; border: 1px solid var(--line); border-radius: 14px; padding: 14px 6px; }
-.milestone.locked { opacity: 0.42; filter: grayscale(1); }
+.milestone.locked { background: var(--sage-light); }
 .milestone strong { display: block; margin-top: 6px; }
 .milestone span { color: var(--muted); font-size: 12px; }
 
@@ -149,10 +169,14 @@ dialog::backdrop { background: rgba(32,36,31,0.28); backdrop-filter: blur(5px); 
 .password-card p { color: var(--muted); }
 .password-card label { margin-top: 20px; text-align: left; }
 .password-card .primary-button { width: 100%; margin-top: 12px; }
-.password-error { min-height: 20px; color: #b45f48 !important; }
+.password-error { min-height: 20px; color: #943e2b !important; }
 .lock-mark { display: grid; place-items: center; width: 54px; height: 54px; margin: auto; border-radius: 17px; background: var(--sage-light); color: var(--sage); }
 
 @media (max-width: 600px) {
+  .calendar-navigation { flex-direction: column; align-items: flex-start; }
+  .calendar-day { height: 70px; padding: 5px 2px; text-align: center; }
+  .calendar-table { border-spacing: 2px; }
+  .calendar-card { padding: 14px 10px; }
   .app-shell { padding: 22px 16px 40px; }
   .topbar h1 { max-width: 260px; }
   .tabs { width: 100%; }

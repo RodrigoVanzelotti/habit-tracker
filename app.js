@@ -1,5 +1,5 @@
 const STORAGE_KEY = "habit-tracker-v1";
-const SHEET_API = "/api/sheets";
+const STATE_API = "/api/state";
 
 const defaultState = {
   habits: [
@@ -11,8 +11,9 @@ const defaultState = {
 };
 
 let state = loadState();
-let sheetsConfigured = false;
-let sheetPassword = "";
+let storageConfigured = false;
+let calendarView = "month";
+let calendarAnchor = isoDate();
 
 function loadState() {
   try {
@@ -23,18 +24,19 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!storageConfigured) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function isoDate(date = new Date()) {
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
+async function request(url, options) {
+  const response = await fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
+  const data = await response.json();
+  if (response.status === 401) document.getElementById("password-screen").classList.remove("hidden");
+  if (!response.ok) throw new Error(data.error || "Request failed. Please try again.");
+  return data;
 }
 
-function addDays(date, days) {
-  const copy = new Date(`${date}T12:00:00`);
-  copy.setDate(copy.getDate() + days);
-  return isoDate(copy);
+function showSaveError(error) {
+  document.getElementById("save-error").textContent = `Could not save: ${error.message}`;
 }
 
 function escapeHtml(value) {
@@ -47,25 +49,27 @@ function hasCheckin(habitId, date = isoDate()) {
   return state.checkins.some((item) => item.habitId === habitId && item.date === date);
 }
 
-function toggleCheckin(habitId) {
+async function toggleCheckin(habitId, button) {
   const date = isoDate();
-  const index = state.checkins.findIndex((item) => item.habitId === habitId && item.date === date);
-  if (index >= 0) state.checkins.splice(index, 1);
-  else state.checkins.push({ habitId, date, value: true });
-  saveState();
-  renderCheckins();
-  renderDashboard();
-  syncCheckin(habitId, date);
-}
-
-async function syncCheckin(habitId, date) {
-  if (!sheetsConfigured) return;
-  const done = hasCheckin(habitId, date);
-  await fetch(`${SHEET_API}?action=checkin`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ habitId, date, value: done })
-  }).catch(() => {});
+  button.disabled = true;
+  try {
+    if (storageConfigured) await request(`${STATE_API}?action=checkin`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ habitId, date, value: !hasCheckin(habitId, date) })
+    });
+    const index = state.checkins.findIndex((item) => item.habitId === habitId && item.date === date);
+    if (index >= 0) state.checkins.splice(index, 1);
+    else state.checkins.push({ habitId, date, value: true });
+    saveState();
+    document.getElementById("save-error").textContent = "";
+    renderCheckins();
+    renderDashboard();
+  } catch (error) {
+    showSaveError(error);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function renderCheckins() {
@@ -87,7 +91,7 @@ function renderCheckins() {
   }).join("");
 
   list.querySelectorAll("[data-habit-id]").forEach((button) => {
-    button.addEventListener("click", () => toggleCheckin(button.dataset.habitId));
+    button.addEventListener("click", () => toggleCheckin(button.dataset.habitId, button));
   });
 
   const complete = state.habits.length
@@ -147,6 +151,34 @@ function renderDashboard() {
   }
 
   renderMilestones(habits);
+  renderCalendar(habits);
+}
+
+function renderCalendar(habits) {
+  const days = calendarDays(calendarAnchor, calendarView);
+  const today = isoDate();
+  const formatter = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", ...(calendarView === "week" ? { day: "numeric" } : {}) });
+  const asDate = (day) => new Date(`${day}T12:00:00`);
+  document.getElementById("calendar-title").textContent = calendarView === "week"
+    ? formatter.formatRange(asDate(days[0]), asDate(days[6]))
+    : formatter.format(asDate(calendarAnchor));
+  document.querySelectorAll(".calendar-view").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.view === calendarView));
+  });
+  const headings = days.slice(0, 7).map((day) => `<th scope="col">${asDate(day).toLocaleDateString(undefined, { weekday: "short" })}</th>`).join("");
+  const rows = [];
+  for (let index = 0; index < days.length; index += 7) {
+    rows.push("<tr>" + days.slice(index, index + 7).map((day) => {
+      const count = habits.filter((habit) => hasCheckin(habit.id, day)).length;
+      const outside = calendarView === "month" && day.slice(0, 7) !== calendarAnchor.slice(0, 7);
+      const status = day > today ? "Future date" : habits.length ? `${count} of ${habits.length} habits checked` : "No habits";
+      return `<td class="calendar-day ${outside ? "outside-month" : ""} ${count ? "has-checkins" : ""} ${habits.length && count === habits.length ? "complete" : ""}">
+        <time datetime="${day}" ${day === today ? 'aria-current="date"' : ""}>${Number(day.slice(8))}</time>
+        <span class="calendar-count" aria-label="${day}: ${status}">${day > today || !habits.length ? "&mdash;" : `${count}/${habits.length}`}</span>
+      </td>`;
+    }).join("") + "</tr>");
+  }
+  document.getElementById("calendar-table").innerHTML = `<thead><tr>${headings}</tr></thead><tbody>${rows.join("")}</tbody>`;
 }
 
 function longestStreak(habits) {
@@ -186,51 +218,32 @@ function renderMilestones(habits) {
     </div>`).join("");
 }
 
-async function syncFromSheets() {
-  if (!sheetsConfigured) return;
-  const params = new URLSearchParams({
-    action: "getState",
-    password: sheetPassword
-  });
-  const response = await fetch(SHEET_API + "?" + params.toString())
-    .then((res) => res.json()).catch(() => null);
-  if (response && response.habits) {
-    state.habits = response.habits;
-    state.checkins = response.checkins || [];
-    saveState();
-  }
+async function syncState() {
+  if (storageConfigured) state = await request(STATE_API);
 }
 
 async function saveHabit(habit) {
-  saveState();
-  if (!sheetsConfigured) return;
-  await fetch(`${SHEET_API}?action=saveHabit`, {
+  if (storageConfigured) await request(`${STATE_API}?action=saveHabit`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(habit)
-  }).catch(() => {});
+  });
+  state.habits.push(habit);
+  saveState();
 }
 
 async function login(password) {
-  const config = await fetch("/api/config").then((res) => res.json()).catch(() => ({}));
+  const config = await request("/api/config");
+  storageConfigured = config.storageConfigured;
   if (config.passwordConfigured) {
-    const result = await fetch("/api/login", {
+    const result = await request("/api/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ password })
-    }).then((res) => res.json()).catch(() => ({ ok: false }));
-    if (result.ok && config.sheetsConfigured) sheetPassword = password;
+    });
     return result.ok;
   }
-
-  if (config.sheetsConfigured) {
-    const params = new URLSearchParams({ action: "verifyPassword", password });
-    const result = await fetch(SHEET_API + "?" + params.toString())
-      .then((res) => res.json()).catch(() => ({ ok: false }));
-    if (result.ok) sheetPassword = password;
-    return Boolean(result.ok);
-  }
-
+  if (storageConfigured) throw new Error("Password is not configured");
   return password === "demo";
 }
 
@@ -245,9 +258,37 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
 document.getElementById("period-filter").addEventListener("change", renderDashboard);
 document.getElementById("habit-filter").addEventListener("change", renderDashboard);
+
+document.querySelectorAll(".calendar-view").forEach((button) => {
+  button.addEventListener("click", () => {
+    calendarView = button.dataset.view;
+    renderDashboard();
+  });
+});
+
+document.querySelectorAll("[data-calendar-step]").forEach((button) => {
+  button.addEventListener("click", () => {
+    calendarAnchor = shiftCalendar(calendarAnchor, calendarView, Number(button.dataset.calendarStep));
+    renderDashboard();
+  });
+});
+
+document.getElementById("calendar-today").addEventListener("click", () => {
+  calendarAnchor = isoDate();
+  renderDashboard();
+});
 document.getElementById("add-habit-button").addEventListener("click", () => {
   document.getElementById("habit-dialog").showModal();
 });
+
+const habitForm = document.getElementById("habit-form");
+function updateTargetLimit() {
+  const max = habitForm.elements.period.value === "week" ? 7 : 31;
+  habitForm.elements.target.max = max;
+  if (Number(habitForm.elements.target.value) > max) habitForm.elements.target.value = max;
+}
+habitForm.elements.period.addEventListener("change", updateTargetLimit);
+updateTargetLimit();
 
 document.getElementById("habit-form").addEventListener("submit", async (event) => {
   const submitter = event.submitter;
@@ -264,27 +305,39 @@ document.getElementById("habit-form").addEventListener("submit", async (event) =
     period: data.get("period")
   };
   if (!habit.name) return;
-  state.habits.push(habit);
-  await saveHabit(habit);
-  form.reset();
+  submitter.disabled = true;
+  try {
+    await saveHabit(habit);
+    form.reset();
+    updateTargetLimit();
   form.elements.emoji.value = "✨";
-  document.getElementBy("habit-dialog").close();
-  renderCheckins();
-  renderDashboard();
+    document.getElementById("habit-dialog").close();
+    document.getElementById("habit-error").textContent = "";
+    renderCheckins();
+    renderDashboard();
+  } catch (error) {
+    document.getElementById("habit-error").textContent = `Could not save: ${error.message}`;
+  } finally {
+    submitter.disabled = false;
+  }
 });
 
 document.getElementById("password-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const password = document.getElementById("password-input").value;
-  const unlocked = await login(password);
-  if (unlocked) {
-    document.getElementById("password-screen").classList.add("hidden");
-    sessionStorage.setItem("habit-unlocked", "true");
-    await syncFromSheets();
-    renderCheckins();
-    renderDashboard();
-  } else {
-    document.getElementById("password-error").textContent = "Incorrect password.";
+  try {
+    const unlocked = await login(password);
+    if (unlocked) {
+      await syncState();
+      document.getElementById("password-screen").classList.add("hidden");
+      sessionStorage.setItem("habit-unlocked", "true");
+      renderCheckins();
+      renderDashboard();
+    } else {
+      document.getElementById("password-error").textContent = "Incorrect password.";
+    }
+  } catch (error) {
+    document.getElementById("password-error").textContent = error.message;
   }
 });
 
@@ -292,14 +345,22 @@ async function initialize() {
   const now = new Date();
   document.getElementById("today-label").textContent = now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   document.getElementById("checkin-date").textContent = now.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-  const config = await fetch("/api/config").then((res) => res.json()).catch(() => ({}));
-  sheetsConfigured = Boolean(config.sheetsConfigured);
-  if (sheetPassword) await syncFromSheets();
+  const config = await request("/api/config");
+  storageConfigured = Boolean(config.storageConfigured);
+  if (storageConfigured) {
+    state = { habits: [], checkins: [] };
+    try {
+      await syncState();
+      document.getElementById("password-screen").classList.add("hidden");
+    } catch { /* An absent or expired session keeps the login form visible. */ }
+  }
   renderCheckins();
   renderDashboard();
-  if (!sheetsConfigured && sessionStorage.getItem("habit-unlocked") === "true") {
+  if (!storageConfigured && !config.passwordConfigured && sessionStorage.getItem("habit-unlocked") === "true") {
     document.getElementById("password-screen").classList.add("hidden");
   }
 }
 
-initialize();
+initialize().catch((error) => {
+  document.getElementById("password-error").textContent = `Could not connect: ${error.message}`;
+});

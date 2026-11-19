@@ -1,0 +1,60 @@
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency:
+      group: habit-tracker-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v3
+        with:
+          project_id: rv-habit-tracker-2026
+          workload_identity_provider: projects/217746768723/locations/global/workloadIdentityPools/habit-github/providers/github
+          service_account: habit-deploy@rv-habit-tracker-2026.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v3
+      - name: Deploy to Cloud Run
+        run: >-
+          gcloud run deploy habit-tracker
+          --source .
+          --project rv-habit-tracker-2026
+          --region us-east1
+          --build-service-account projects/rv-habit-tracker-2026/serviceAccounts/habit-build@rv-habit-tracker-2026.iam.gserviceaccount.com
+          --service-account habit-runtime@rv-habit-tracker-2026.iam.gserviceaccount.com
+          --set-env-vars STORAGE_BACKEND=firestore
+          --set-secrets APP_PASSWORD=habit-app-password:latest
+          --min-instances 0 --max-instances 1
+          --memory 256Mi --cpu 1 --concurrency 20 --timeout 30
+          --quiet
+      - name: Check deployed service
+        run: |
+          url=$(gcloud run services describe habit-tracker --project rv-habit-tracker-2026 --region us-east1 --format='value(status.url)')
+          curl --fail --retry 3 "$url/"
+          curl --fail "$url/api/config" | python3 -c 'import json, sys; c=json.load(sys.stdin); assert c["storageConfigured"] and c["passwordConfigured"]'
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$url/api/state")" = 401

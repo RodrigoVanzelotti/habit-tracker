@@ -21,6 +21,7 @@
         <button class="tab active" type="button" data-tab="checkin">Check-in</button>
         <button class="tab" type="button" data-tab="dashboard">Dashboard</button>
       </nav>
+      <p class="password-error" id="save-error" role="alert"></p>
 
       <section class="tab-panel active" id="checkin-panel">
         <div class="section-heading">
@@ -50,6 +51,25 @@
           </label>
         </div>
         <div class="summary-grid" id="summary-grid"></div>
+        <article class="card calendar-card" aria-labelledby="calendar-heading">
+          <div class="card-heading">
+            <h2 id="calendar-heading">Calendar</h2>
+            <div class="calendar-views" role="group" aria-label="Calendar view">
+              <button class="calendar-view" type="button" data-view="week" aria-pressed="false">Week</button>
+              <button class="calendar-view" type="button" data-view="month" aria-pressed="true">Month</button>
+            </div>
+          </div>
+          <div class="calendar-navigation">
+            <h3 id="calendar-title" aria-live="polite"></h3>
+            <div class="calendar-actions" role="group" aria-label="Calendar navigation">
+              <button type="button" data-calendar-step="-1" aria-label="Previous period">Previous</button>
+              <button type="button" id="calendar-today">Today</button>
+              <button type="button" data-calendar-step="1" aria-label="Next period">Next</button>
+            </div>
+          </div>
+          <table class="calendar-table" id="calendar-table" aria-labelledby="calendar-title" aria-describedby="calendar-help"></table>
+          <p class="field-help" id="calendar-help">Daily check-ins / selected habits. Weeks start on Monday. Today is outlined.</p>
+        </article>
         <article class="card">
           <div class="card-heading">
             <h2>Consistency</h2>
@@ -101,6 +121,7 @@
           </label>
         </div>
         <p class="field-help">Positive habits reward each check. Negative habits reward days where you avoid the habit.</p>
+        <p class="password-error" id="habit-error" role="alert"></p>
         <button class="primary-button" value="save" type="submit">Save habit</button>
       </form>
     </dialog>
@@ -119,6 +140,7 @@
       </form>
     </section>
 
+    <script src="/calendar.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

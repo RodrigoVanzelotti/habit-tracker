@@ -1,0 +1,8 @@
+.git
+node_modules
+.env*
+.local
+test
+google-apps-script
+*.log
+gha-creds-*.json
