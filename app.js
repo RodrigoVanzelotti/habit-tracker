@@ -12,6 +12,7 @@ const defaultState = {
 
 let state = loadState();
 let sheetsConfigured = false;
+let sheetPassword = "";
 
 function loadState() {
   try {
@@ -189,7 +190,7 @@ async function syncFromSheets() {
   if (!sheetsConfigured) return;
   const params = new URLSearchParams({
     action: "getState",
-    password: sessionStorage.getItem("habit-sheet-password") || ""
+    password: sheetPassword
   });
   const response = await fetch(SHEET_API + "?" + params.toString())
     .then((res) => res.json()).catch(() => null);
@@ -218,6 +219,7 @@ async function login(password) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ password })
     }).then((res) => res.json()).catch(() => ({ ok: false }));
+    if (result.ok && config.sheetsConfigured) sheetPassword = password;
     return result.ok;
   }
 
@@ -225,7 +227,7 @@ async function login(password) {
     const params = new URLSearchParams({ action: "verifyPassword", password });
     const result = await fetch(SHEET_API + "?" + params.toString())
       .then((res) => res.json()).catch(() => ({ ok: false }));
-    if (result.ok) sessionStorage.setItem("habit-sheet-password", password);
+    if (result.ok) sheetPassword = password;
     return Boolean(result.ok);
   }
 
@@ -278,6 +280,9 @@ document.getElementById("password-form").addEventListener("submit", async (event
   if (unlocked) {
     document.getElementById("password-screen").classList.add("hidden");
     sessionStorage.setItem("habit-unlocked", "true");
+    await syncFromSheets();
+    renderCheckins();
+    renderDashboard();
   } else {
     document.getElementById("password-error").textContent = "Incorrect password.";
   }
@@ -289,10 +294,10 @@ async function initialize() {
   document.getElementById("checkin-date").textContent = now.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
   const config = await fetch("/api/config").then((res) => res.json()).catch(() => ({}));
   sheetsConfigured = Boolean(config.sheetsConfigured);
-  await syncFromSheets();
+  if (sheetPassword) await syncFromSheets();
   renderCheckins();
   renderDashboard();
-  if (sessionStorage.getItem("habit-unlocked") === "true") {
+  if (!sheetsConfigured && sessionStorage.getItem("habit-unlocked") === "true") {
     document.getElementById("password-screen").classList.add("hidden");
   }
 }
